@@ -22,6 +22,10 @@ class SpeedMonitor: ObservableObject {
     private let totalDownloadedKey = "totalDownloadedBytes"
     private let totalUploadedKey = "totalUploadedBytes"
     
+    deinit {
+        stopMonitoring()
+    }
+    
     init() {
         // Load saved totals from UserDefaults
         let savedDownloaded = UInt64(UserDefaults.standard.integer(forKey: totalDownloadedKey))
@@ -34,21 +38,60 @@ class SpeedMonitor: ObservableObject {
             totalUploaded = formatBytes(savedUploaded)
         }
     }
+    
+    func stopMonitoring() {
+        timer?.invalidate()
+        timer = nil
+        monitor.cancel()
+    }
 
     func startMonitoring() {
-        monitor.pathUpdateHandler = { _ in }
+        // Monitor network path changes (VPN connect/disconnect, etc.)
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
+            
+            // Reset counters when network topology changes
+            DispatchQueue.main.async {
+                self.resetCountersOnNetworkChange()
+            }
+        }
         monitor.start(queue: queue)
 
-        // Start timer loop for speed polling
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            self.updateNetworkUsage()
+        // Start timer loop for speed polling on main run loop
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.updateNetworkUsage()
         }
+    }
+    
+    private func resetCountersOnNetworkChange() {
+        // Reset to current values to avoid negative calculations
+        let (rx, tx) = getNetworkBytes()
+        previousRx = rx
+        previousTx = tx
+        sessionStartRx = rx
+        sessionStartTx = tx
     }
 
     private func updateNetworkUsage() {
         let (rx, tx) = self.getNetworkBytes()
 
         if previousRx > 0 && previousTx > 0 {
+            // Protect against negative values when interfaces disappear (VPN disconnect)
+            // If current values are less than previous, network topology changed
+            guard rx >= previousRx && tx >= previousTx else {
+                // Reset counters on unexpected decrease
+                previousRx = rx
+                previousTx = tx
+                sessionStartRx = rx
+                sessionStartTx = tx
+                
+                DispatchQueue.main.async {
+                    self.downloadSpeed = "0 KB/s"
+                    self.uploadSpeed = "0 KB/s"
+                }
+                return
+            }
+            
             let dl = Int(rx - previousRx)
             let ul = Int(tx - previousTx)
 
@@ -60,6 +103,13 @@ class SpeedMonitor: ObservableObject {
                 if self.sessionStartRx == 0 {
                     self.sessionStartRx = rx
                     self.sessionStartTx = tx
+                }
+                
+                // Protect against underflow in session calculations
+                guard rx >= self.sessionStartRx && tx >= self.sessionStartTx else {
+                    self.sessionStartRx = rx
+                    self.sessionStartTx = tx
+                    return
                 }
                 
                 let currentDownloaded = rx - self.sessionStartRx
@@ -94,19 +144,31 @@ class SpeedMonitor: ObservableObject {
         var tx: UInt64 = 0
 
         var addrs: UnsafeMutablePointer<ifaddrs>?
-        if getifaddrs(&addrs) == 0, let firstAddr = addrs {
-            var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
-
-            while let current = ptr {
-                if let dataPtr = current.pointee.ifa_data {
-                    let ifdata = dataPtr.assumingMemoryBound(to: if_data.self).pointee
-                    rx += UInt64(ifdata.ifi_ibytes)
-                    tx += UInt64(ifdata.ifi_obytes)
-                }
-                ptr = current.pointee.ifa_next
+        guard getifaddrs(&addrs) == 0 else {
+            // Failed to get interface addresses
+            return (rx, tx)
+        }
+        
+        defer {
+            if let addrs = addrs {
+                freeifaddrs(addrs)
             }
+        }
+        
+        guard let firstAddr = addrs else {
+            return (rx, tx)
+        }
+        
+        var ptr: UnsafeMutablePointer<ifaddrs>? = firstAddr
 
-            freeifaddrs(addrs)
+        while let current = ptr {
+            // Safely access interface data
+            if let dataPtr = current.pointee.ifa_data {
+                let ifdata = dataPtr.assumingMemoryBound(to: if_data.self).pointee
+                rx += UInt64(ifdata.ifi_ibytes)
+                tx += UInt64(ifdata.ifi_obytes)
+            }
+            ptr = current.pointee.ifa_next
         }
 
         return (rx, tx)
