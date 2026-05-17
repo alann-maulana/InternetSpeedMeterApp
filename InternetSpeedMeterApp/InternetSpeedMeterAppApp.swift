@@ -4,6 +4,13 @@ import Combine
 @main
 struct InternetSpeedMeterApp: App {
     @StateObject private var speedMonitor = SpeedMonitor()
+    
+    init() {
+        // Start monitoring immediately on app launch
+        let monitor = SpeedMonitor()
+        _speedMonitor = StateObject(wrappedValue: monitor)
+        monitor.startMonitoring()
+    }
 
     var body: some Scene {
         MenuBarExtra {
@@ -67,9 +74,6 @@ struct InternetSpeedMeterApp: App {
             }
             .padding()
             .frame(width: 250)
-            .onAppear {
-                speedMonitor.startMonitoring()
-            }
         } label: {
             Text("↑ \(speedMonitor.uploadSpeed)  ↓ \(speedMonitor.downloadSpeed)")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
