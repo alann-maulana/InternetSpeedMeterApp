@@ -174,14 +174,24 @@ class SpeedMonitor: ObservableObject {
         return (rx, tx)
     }
 
+    /// Formats a Double with up to 2 decimal places, stripping unnecessary trailing zeros.
+    /// e.g. 1.00 → "1", 1.10 → "1.1", 1.23 → "1.23"
+    private func smartFormat(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = 2
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    }
+
     private func formatSpeed(_ bytes: Int) -> String {
         let kb = Double(bytes) / 1024
         let mb = kb / 1024
 
         if mb >= 1 {
-            return String(format: "%.2f MB/s", mb)
+            return "\(smartFormat(mb)) MB/s"
         }
-        return String(format: "%.2f KB/s", kb)
+        return "\(smartFormat(kb)) KB/s"
     }
     
     private func formatBytes(_ bytes: UInt64) -> String {
@@ -190,11 +200,11 @@ class SpeedMonitor: ObservableObject {
         let gb = mb / 1024
 
         if gb >= 1 {
-            return String(format: "%.2f GB", gb)
+            return "\(smartFormat(gb)) GB"
         } else if mb >= 1 {
-            return String(format: "%.2f MB", mb)
+            return "\(smartFormat(mb)) MB"
         } else {
-            return String(format: "%.2f KB", kb)
+            return "\(smartFormat(kb)) KB"
         }
     }
     
