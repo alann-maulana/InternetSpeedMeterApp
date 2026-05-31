@@ -3,13 +3,13 @@ import Combine
 
 @main
 struct InternetSpeedMeterApp: App {
-    @StateObject private var speedMonitor = SpeedMonitor()
+    @StateObject private var speedMonitor: SpeedMonitor
     
     init() {
-        // Start monitoring immediately on app launch
+        // Create a single SpeedMonitor instance and start monitoring immediately
         let monitor = SpeedMonitor()
-        _speedMonitor = StateObject(wrappedValue: monitor)
         monitor.startMonitoring()
+        _speedMonitor = StateObject(wrappedValue: monitor)
     }
 
     var body: some Scene {
@@ -17,67 +17,79 @@ struct InternetSpeedMeterApp: App {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Internet Speed Meter")
                     .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                 Divider()
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Current Speed")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    
-                    HStack {
-                        Text("↑ Upload:")
-                            .frame(width: 80, alignment: .leading)
-                        Text(speedMonitor.uploadSpeed)
-                            .fontWeight(.medium)
-                            .foregroundColor(.blue)
-                    }
-                    
-                    HStack {
-                        Text("↓ Download:")
-                            .frame(width: 80, alignment: .leading)
-                        Text(speedMonitor.downloadSpeed)
-                            .fontWeight(.medium)
-                            .foregroundColor(.green)
+
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
+                        GridRow {
+                            Text("↑ Upload:")
+                                .gridColumnAlignment(.leading)
+                                .foregroundColor(.secondary)
+                                .frame(minWidth: 100, alignment: .leading)
+                            Text(speedMonitor.uploadSpeed)
+                                .fontWeight(.medium)
+                                .foregroundColor(.blue)
+                                .gridColumnAlignment(.leading)
+                        }
+                        GridRow {
+                            Text("↓ Download:")
+                                .foregroundColor(.secondary)
+                                .frame(minWidth: 100, alignment: .leading)
+                            Text(speedMonitor.downloadSpeed)
+                                .fontWeight(.medium)
+                                .foregroundColor(.green)
+                        }
                     }
                 }
 
                 Divider()
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Total Data Usage")
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    
-                    HStack {
-                        Text("↑ Uploaded:")
-                            .frame(width: 80, alignment: .leading)
-                        Text(speedMonitor.totalUploaded)
-                            .fontWeight(.medium)
-                    }
-                    
-                    HStack {
-                        Text("↓ Downloaded:")
-                            .frame(width: 80, alignment: .leading)
-                        Text(speedMonitor.totalDownloaded)
-                            .fontWeight(.medium)
+
+                    Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 4) {
+                        GridRow {
+                            Text("↑ Uploaded:")
+                                .gridColumnAlignment(.leading)
+                                .foregroundColor(.secondary)
+                                .frame(minWidth: 100, alignment: .leading)
+                            Text(speedMonitor.totalUploaded)
+                                .fontWeight(.medium)
+                                .gridColumnAlignment(.leading)
+                        }
+                        GridRow {
+                            Text("↓ Downloaded:")
+                                .foregroundColor(.secondary)
+                                .frame(minWidth: 100, alignment: .leading)
+                            Text(speedMonitor.totalDownloaded)
+                                .fontWeight(.medium)
+                        }
                     }
                 }
 
                 Divider()
 
-                Button("Reset Stats") {
-                    speedMonitor.resetTotalUsage()
+                Button(action: { speedMonitor.resetTotalUsage() }) {
+                    Text("Reset Stats")
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .buttonStyle(.borderless)
                 .frame(maxWidth: .infinity)
             }
-            .padding()
-            .frame(width: 250)
+            .padding(12)
+            .frame(width: 240)
         } label: {
             Text("↑ \(speedMonitor.uploadSpeed)  ↓ \(speedMonitor.downloadSpeed)")
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
     }
 }
